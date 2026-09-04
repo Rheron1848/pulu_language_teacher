@@ -203,7 +203,7 @@ const LINE_NAMES = Object.keys(LINES);
 
 let state = {
   sessions: [], activeId: null, filter: "all", busy: false,
-  ws: null, subscribedId: null, reconnectTimer: null, everConnected: false,
+  ws: null, subscribedId: null, reconnectTimer: null, everConnected: false, pingTimer: null,
 };
 let els = {};
 // 当前 turn 的流式渲染状态
@@ -432,6 +432,13 @@ function ensureWS() {
   ws.onopen = () => {
     setConn(true);
     state.everConnected = true;
+    // 中间链路(Caddy/frp)对空闲 WS 有 heartbeat 超时, 客户端每 25s 发 ping 保活
+    clearInterval(state.pingTimer);
+    state.pingTimer = setInterval(() => {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify({ type: "ping", payload: {} }));
+      }
+    }, 25000);
     if (state.activeId) subscribeSession(state.activeId);
     // 重连后失联期间的 delta(volatile 不重放)和 turn.ended 可能已丢:
     // 若本地还认为在忙, 重新加载当前会话以对齐服务端真实状态
@@ -440,6 +447,7 @@ function ensureWS() {
   ws.onclose = (ev) => {
     if (state.ws !== ws) return; // 旧连接的残留事件,忽略
     console.warn("WS closed", ev.code, ev.reason || "");
+    clearInterval(state.pingTimer);
     state.ws = null; state.subscribedId = null;
     setConn(false);
     scheduleReconnect();
