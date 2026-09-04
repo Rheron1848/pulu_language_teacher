@@ -18,6 +18,7 @@
   #sb-head { padding: 14px 16px; border-bottom: 1px solid var(--line); }
   #sb-head h1 { font-size: 17px; }
   #sb-head p { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  #sb-ws { font-size: 11px; color: var(--ok); background: #f0fdf4; padding: 5px 16px; border-bottom: 1px solid var(--line); }
   #lang-tabs { display: flex; gap: 6px; padding: 10px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
   .lang-tab { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font-size: 13px; cursor: pointer; color: var(--sub); }
   .lang-tab.active { background: var(--brand); border-color: var(--brand); color: #fff; }
@@ -83,6 +84,7 @@
       <h1>📚 多语教师</h1>
       <p>日语 · 法语 · 满语 · 土耳其语</p>
     </div>
+    <div id="sb-ws">专属工作区 · 与开发会话隔离</div>
     <div id="lang-tabs">
       <button class="lang-tab active" data-lang="all">全部</button>
       <button class="lang-tab" data-lang="日语">🇯🇵 日语</button>
@@ -133,6 +135,10 @@
 // 若 Kimi server 与页面不同源, 在下方改 API_BASE 并确保 KIMI_CODE_CORS_ORIGINS 已放行。
 // ============================================================
 const API_BASE = (window.__KIMI_API_BASE__ || ""); // 同源时留空
+// 语言教师专属 workspace(Kimi 会话按 workspace 隔离,教学与开发互不混)
+// 可在 URL 加 ?ws=<workspace_id> 覆盖(默认锁定语言教师工作区)
+const PULU_WS = "wd_pulu_language_teacher_610e23f92ac6";
+const WORKSPACE_ID = new URLSearchParams(location.search).get("ws") || PULU_WS;
 const LINES = { "日语":"jp", "法语":"fr", "满语":"mnc", "土耳其语":"tr" };
 const LINE_NAMES = Object.keys(LINES);
 const HINT = "（该会话主题由 Kimi 自动生成,可能不准确）";
@@ -170,7 +176,7 @@ function detectLine(text) {
 // ---------- 会话列表 ----------
 async function loadSessions() {
   try {
-    const d = await api("GET", "/api/v1/sessions?page_size=200");
+    const d = await api("GET", `/api/v1/sessions?workspace_id=${encodeURIComponent(WORKSPACE_ID)}&page_size=200`);
     const items = d.items || d.sessions || [];
     state.sessions = items.filter(s => !s.archived);
     renderSessions();
@@ -247,7 +253,7 @@ function briefToolIO(input) {
 // ---------- 新建会话 ----------
 async function createSession(title) {
   try {
-    const body = {};
+    const body = { workspace_id: WORKSPACE_ID };
     if (title) body.title = title;
     const d = await api("POST", "/api/v1/sessions", body);
     const id = d.id || d.session_id;
