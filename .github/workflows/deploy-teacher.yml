@@ -1,0 +1,28 @@
+name: 部署教学网页
+
+# web/ 目录有改动并推送到 main 时,自动 scp 到 ECS 的 /srv/www/teacher/
+# 需要的 repo secret: TEACHER_DEPLOY_KEY(ECS teacher-deploy 账号的 SSH 私钥)
+on:
+  push:
+    branches: [main]
+    paths: ["web/**"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 上传页面到 ECS
+        env:
+          SSH_KEY: ${{ secrets.TEACHER_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 47.96.147.63 >> ~/.ssh/known_hosts 2>/dev/null
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes web/teacher.html teacher-deploy@47.96.147.63:/srv/www/teacher/index.html
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes teacher-deploy@47.96.147.63 "mkdir -p /srv/www/teacher/vendor"
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes web/vendor/* teacher-deploy@47.96.147.63:/srv/www/teacher/vendor/
+          echo "部署完成: https://teacher.47.96.147.63.sslip.io/"

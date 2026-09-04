@@ -8,6 +8,7 @@
 > 定制单页课堂（`web/teacher.html`）：左侧会话列表按语言线筛选、右侧流式对话，AI 教师读档案上课并自动更新词汇本/进度。
 > 页面锁定语言教师专属 workspace（`wd_pulu_language_teacher_…`），与 Kimi 的开发会话完全隔离。
 > 公网已配账号密码门禁 + Caddy 注入 token，浏览器打开输入密码即可，无需 token 参数。
+> **自动部署**：push 到 main 且 `web/` 有改动时，GitHub Action（`.github/workflows/deploy-teacher.yml`）自动同步到部署机 `/srv/www/teacher/`（需 repo secret `TEACHER_DEPLOY_KEY`）；手动触发可在 Actions 页运行 workflow。
 
 ## 如何在任何地方继续上课
 
