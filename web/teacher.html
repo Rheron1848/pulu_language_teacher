@@ -147,8 +147,13 @@ let token = "";
 let state = { sessions: [], activeId: null, filter: "all", busy: false, ws: null };
 let els = {};
 
-// ---------- token: URL fragment 或 localStorage ----------
-function readToken() {
+// ---------- 鉴权模式 ----------
+// 公网部署(teacher.47.96.147.63.sslip.io): Caddy 已做账号密码门禁(basicauth)
+//   并把 Kimi bearer token 注入到 /api/* 反代 —— 页面无需任何 token,直接用。
+// 直连模式(本地 127.0.0.1:58627 或 file://): 需要 #token= 或 localStorage。
+const PROXIED = location.hostname.endsWith(".sslip.io") || location.hostname.endsWith(".nip.io");
+function effectiveToken() {
+  if (PROXIED) return ""; // 由 Caddy 注入,页面不携带
   const frag = location.hash.match(/token=([A-Za-z0-9_-]+)/);
   if (frag) { localStorage.setItem("kimi_token", frag[1]); return frag[1]; }
   return localStorage.getItem("kimi_token") || "";
@@ -157,9 +162,10 @@ function readToken() {
 // ---------- REST 封装 ----------
 async function api(method, path, body) {
   const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = "Bearer " + token;
+  const tok = effectiveToken();
+  if (tok) headers["Authorization"] = "Bearer " + tok;
   const res = await fetch(API_BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
-  if (res.status === 401) throw new Error("AUTH: token 无效或缺失");
+  if (res.status === 401) throw new Error("AUTH: 未授权(公网请检查账号密码;Caddy 会注入 token)");
   const j = await res.json().catch(() => ({}));
   if (j.code !== 0 && j.code !== undefined) throw new Error(`API ${j.code}: ${j.msg || "未知错误"}`);
   return j.data;
@@ -298,12 +304,12 @@ async function sendPrompt(text) {
 
 // ---------- WebSocket 流式 ----------
 function connectWS(sessionId) {
-  if (!token || !sessionId) return;
-  try { if (state.ws) state.ws.close(); } catch(e){}
-  const proto = "kimi-code.bearer." + token;
+  if (!sessionId) return;
+  const tok = effectiveToken();
+  const proto = tok ? "kimi-code.bearer." + tok : undefined; // 直连时用 subprotocol;公网由 Caddy 注入头
   const url = (API_BASE || location.origin).replace(/^http/, "ws") + "/api/v1/ws";
   let ws;
-  try { ws = new WebSocket(url, proto); } catch (e) { return; }
+  try { ws = proto ? new WebSocket(url, proto) : new WebSocket(url); } catch (e) { return; }
   state.ws = ws;
   let curTool = null; // {name, el, buf}
   ws.onopen = () => setConn(true);
@@ -434,15 +440,16 @@ async function init() {
     connDot: document.getElementById("conn-dot"),
     connText: document.getElementById("conn-text"),
   };
-  token = readToken();
-  if (!token) {
-    // 未带 token: 尝试从同源 /api/v1/auth 拿?(需要服务端配合) 否则提示
-    try { const d = await api("GET", "/api/v1/auth"); token = d.token || token; } catch(e){}
-  }
-  if (!token) {
-    setStatus("⚠ 缺少访问 token。请用带 #token= 的完整链接打开本页。");
+  if (PROXIED) {
+    // 公网模式: Caddy 已注入鉴权,无 token 要求,直接试连
     setConn(false);
-    return;
+  } else {
+    token = effectiveToken();
+    if (!token) {
+      setStatus("⚠ 缺少访问 token。直连模式请用带 #token= 的完整链接打开本页。");
+      setConn(false);
+      return;
+    }
   }
   // 空状态按钮已绑定; 语言 tab 绑定
   document.querySelectorAll(".lang-tab").forEach(t => t.onclick = () => {
@@ -458,8 +465,8 @@ async function init() {
   // 空状态快捷开课按钮在 HTML 里 onclick=startLesson
   setStatus("正在连接 Kimi 教师服务…");
   await loadSessions();
-  // 自动重连 ws(即使无活动会话也连上,保持认证)
-  if (token) { connectWS(state.activeId); }
+  // 自动重连 ws(公网模式无 token 也连;WS 鉴权由 Caddy 注入头)
+  connectWS(state.activeId);
   setStatus("就绪。选择左侧会话继续上课,或点“新开一课”。");
 }
 </script>
