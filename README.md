@@ -4,9 +4,10 @@
 
 ## 上课入口（推荐：定制教学网页）
 
-> **https://teacher.47.96.147.63.sslip.io/#token=<见 kimi-teacher 日志>**
+> **https://teacher.47.96.147.63.sslip.io**（账号 pulu / 密码见 frp-office-setup 部署机 Caddyfile）
 > 定制单页课堂（`web/teacher.html`）：左侧会话列表按语言线筛选、右侧流式对话，AI 教师读档案上课并自动更新词汇本/进度。
 > 页面锁定语言教师专属 workspace（`wd_pulu_language_teacher_…`），与 Kimi 的开发会话完全隔离。
+> 公网已配账号密码门禁 + Caddy 注入 token，浏览器打开输入密码即可，无需 token 参数。
 
 ## 如何在任何地方继续上课
 
